@@ -8,7 +8,7 @@ const cors = require("cors")
 const app = express();
 app.use(express.json());
 app.use(cors({
-    origin:"https://dms-frontend-tau.vercel.app/auth/login"
+    origin:"https://dms-frontend-tau.vercel.app"
 }))
 
 mongoose.connect('mongodb+srv://rajashrichougule_db_user:dqgGMUbtXU8rJoyT@cluster0.nyfa3al.mongodb.net/dms');
