@@ -74,9 +74,6 @@ router.post("/auth/verify-otp", async (req, res) => {
     if (!verified) {
       return res.status(401).json({ msg: "Invalid OTP" });
     }
-
-    // Clear auth key after verification
-    userExist.authkey = null;
     await userExist.save();
 
     // Generate final JWT token for session
