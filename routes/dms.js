@@ -78,9 +78,11 @@ async function buildTree(parentId = null) {
     return {
       id: node._id.toString(),
       label: node.label,
-      type: node.type, // <-- ✅ include the `type`
+      type: node.type,
       children: children.length > 0 ? children : undefined,
-      path:node.path
+      path:node.path,
+      createdAt:node.createdAt,
+      updateAt:node.updatedAt
     };
   }));
 
@@ -123,8 +125,8 @@ router.get("/categories", async (req, res) => {
   try {
     const categories = await DMS.find({ type: "category" })
       .populate({
-        path: "parentId",          // field in the category pointing to parent
-        select: "_id label type",  // include _id along with label and type
+        path: "parentId",          
+        select: "_id label type",  
       });
 
     res.json(categories);
@@ -290,7 +292,7 @@ router.delete('/:id', async (req, res) => {
     const node = await DMS.findById(req.params.id);
     if (!node) return res.status(404).json({ error: 'Node not found' });
 
-    if (recursive === 'true') {
+    if (recursive === "true") {
       const deleteNodeAndChildren = async (nodeId) => {
         const children = await DMS.find({ parentId: nodeId });
         for (const child of children) {

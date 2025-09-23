@@ -1,0 +1,20 @@
+[{
+  "_id": {
+    "$oid": "674977c65f61e9c4ee6f5ca6"
+  },
+  "username": "Digihost\n",
+  "email": "digihost2021@digihost.in",
+  "phone": "8556924581",
+  "password": "$2y$10$e9F0Ni.nO.FtvsNuuZ7h2.7QPl5N.QJwOM/rcY6lKqnEuTFVW/2R6",
+  "isadmin": true,
+  "pic": "17247331454626+94.png",
+  "loginotpcount": 1,
+  "otp": "885784",
+  "authkey": null,
+  "role": "Admin",
+  "isVerified": false,
+  "updatedAt": {
+    "$date": "2025-09-22T10:00:22.800Z"
+  },
+  "profileImg": "https://digihostsolutions.com/leave_portal/uploads/75d63f8755e86d9dc5b3537dac66c1de_1.webp"
+}]
