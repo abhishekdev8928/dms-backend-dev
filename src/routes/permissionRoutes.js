@@ -2,7 +2,7 @@
 
 // routes/permissionRoutes.js
 import express from "express";
-import { assignPermissions, listPermissions } from "../../controller/permissionController.js";
+import { assignPermissions, listPermissions } from "../controller/permissionController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 import { authorizeRole } from "../middleware/commonMiddleware.js";
 

@@ -7,7 +7,7 @@ import {
   replaceFile,
   saveFileMetadata,
   searchFiles
-} from "../../controller/fileController.js";
+} from "../controller/fileController.js";
 
 const router = express.Router();
 

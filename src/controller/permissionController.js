@@ -1,6 +1,6 @@
 // controllers/permissionController.js
 import createError from "http-errors";
-import { NodePermissionModel } from "../src/models/NodeModel.js";
+import { NodePermissionModel } from "../models/NodeModel.js";
 
 /**
  * @desc    Assign permissions to a node (folder/file)

@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import createHttpError from "http-errors";
-import createPresignedUrlWithClient from "../src/utils/presignedUrl.js";
-import { NodeModel, FileVersionModel } from "../src/models/NodeModel.js";
+import createPresignedUrlWithClient from "../utils/presignedUrl.js";
+import { NodeModel, FileVersionModel } from "../models/NodeModel.js";
 
 /**
  * @desc    Generate pre-signed URLs for file uploads
@@ -53,7 +53,9 @@ export const generatePresignedUrls = async (req, res, next) => {
  * @desc    Save uploaded file metadata to DB
  * @route   POST /files/save
  * @access  Private
+ * @body    label, mimeType, size, storageKey, uploadedBy, parentId(optional)
  */
+
 export const saveFileMetadata = async (req, res, next) => {
   try {
     const { label, parentId, mimeType, size, storageKey, uploadedBy } = req.body;

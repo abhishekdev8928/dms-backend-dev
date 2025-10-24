@@ -1,5 +1,5 @@
 import createHttpError from "http-errors";
-import { NodeModel } from "../src/models/NodeModel.js";
+import { NodeModel } from "../models/NodeModel.js";
 
 /**
  * @desc    Get all categories

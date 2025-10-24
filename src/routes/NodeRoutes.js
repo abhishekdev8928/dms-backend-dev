@@ -4,21 +4,21 @@ import {
   getDepartments,
   updateDepartment,
   deleteDepartment
-} from "../../controller/departmentController.js";
+} from "../controller/departmentController.js";
 
 import {
   createCategory,
   getCategories,
   updateCategory,
   deleteCategory
-} from "../../controller/categoryController.js";
+} from "../controller/categoryController.js";
 
 import {
   createSubCategory,
   getSubCategories,
   updateSubCategory,
   deleteSubCategory
-} from "../../controller/subCategoryController.js";
+} from "../controller/subCategoryController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 import { NodePermissionModel } from "../models/NodeModel.js";
 

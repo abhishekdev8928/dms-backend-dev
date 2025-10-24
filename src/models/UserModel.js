@@ -17,7 +17,7 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
     authkey: {
-      type: String, // OTP secret for TOTP
+      type: String,
     },
     loginotpcount: {
       type: Number,
@@ -29,13 +29,14 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      default: "user", // optional role field
+      enum: ["superadmin", "admin", "member", "bank"], // allowed roles
+      default: "member",
     },
-    otp:{
-      type:Number
-    }
+    otp: {
+      type: Number,
+    },
   },
-  { timestamps: true  , versionKey: false}
+  { timestamps: true, versionKey: false }
 );
 
 // 🔒 Hash password before saving
