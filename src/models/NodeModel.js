@@ -13,9 +13,13 @@ const NodeSchema = new mongoose.Schema(
 
     status: { type: Number, enum: [0, 1], default: 1 },
 
-    parentId: { type: mongoose.Schema.Types.ObjectId, ref: "Node", default: null, index: true },
+    parentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Node",
+      default: null,
+      index: true,
+    },
 
-    // Tags: only for folder/file
     tags: {
       type: [String],
       required: function () {
@@ -34,25 +38,36 @@ const NodeSchema = new mongoose.Schema(
     },
 
     // File-specific fields
-    currentVersion: {
-      type: Number,
-      required: function () { return this.type === "file"; },
-      default: function () { return this.type === "file" ? 0 : undefined; },
+    currentVersionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "FileVersion",
+      required:false
     },
+
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: function () { return this.type === "file"; },
+      required: function () {
+        return this.type === "file";
+      },
     },
     size: {
       type: Number,
-      required: function () { return this.type === "file"; },
-      default: function () { return this.type === "file" ? 0 : undefined; },
+      required: function () {
+        return this.type === "file";
+      },
+      default: function () {
+        return this.type === "file" ? 0 : undefined;
+      },
     },
     mimeType: {
       type: String,
-      required: function () { return this.type === "file"; },
-      default: function () { return this.type === "file" ? "application/octet-stream" : undefined; },
+      required: function () {
+        return this.type === "file";
+      },
+      default: function () {
+        return this.type === "file" ? "application/octet-stream" : undefined;
+      },
     },
   },
   { timestamps: true }
@@ -66,9 +81,11 @@ NodeSchema.index({ path: 1 });
 // Pre-save hook: ensure file fields are valid
 NodeSchema.pre("save", function (next) {
   if (this.type === "file") {
-    if (!this.uploadedBy) return next(new Error("uploadedBy is required for files"));
+    if (!this.uploadedBy)
+      return next(new Error("uploadedBy is required for files"));
     if (!this.mimeType) this.mimeType = "application/octet-stream";
-    if (!this.currentVersion && this.currentVersion !== 0) this.currentVersion = 0;
+    if (!this.currentVersion && this.currentVersion !== 0)
+      this.currentVersion = 0;
     if (!this.size && this.size !== 0) this.size = 0;
     if (!this.path) this.path = "";
   }
@@ -77,18 +94,25 @@ NodeSchema.pre("save", function (next) {
 
 export const NodeModel = mongoose.model("Node", NodeSchema);
 
-
 /////////////////////////
 // 2️⃣ File Version Schema
 /////////////////////////
 const FileVersionSchema = new mongoose.Schema(
   {
-    fileId: { type: mongoose.Schema.Types.ObjectId, ref: "Node", required: true },
+    fileId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Node",
+      required: true,
+    },
     versionNumber: { type: Number, required: true },
     storageKey: { type: String, required: true },
     size: { type: Number, required: true },
     mimeType: { type: String, required: true },
-    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    uploadedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
     uploadedAt: { type: Date, default: Date.now },
     note: { type: String, default: "" },
     checksum: { type: String, default: null },
@@ -100,14 +124,21 @@ const FileVersionSchema = new mongoose.Schema(
 FileVersionSchema.index({ fileId: 1, versionNumber: -1 });
 FileVersionSchema.index({ fileId: 1, uploadedAt: -1 });
 
-export const FileVersionModel = mongoose.model("FileVersion", FileVersionSchema);
+export const FileVersionModel = mongoose.model(
+  "FileVersion",
+  FileVersionSchema
+);
 
 /////////////////////////
 // 3️⃣ Node Permission Schema
 /////////////////////////
 const NodePermissionSchema = new mongoose.Schema(
   {
-    nodeId: { type: mongoose.Schema.Types.ObjectId, ref: "Node", required: true },
+    nodeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Node",
+      required: true,
+    },
 
     // Either assign specific users
     userIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
@@ -116,12 +147,10 @@ const NodePermissionSchema = new mongoose.Schema(
     role: { type: String },
 
     accessType: {
-  type: [String],
-  enum: ["view", "upload", "edit", "delete", "download"],
-  required: true,
-}
-,
-
+      type: [String],
+      enum: ["view", "upload", "edit", "delete", "download"],
+      required: true,
+    },
     grantedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     grantedAt: { type: Date, default: Date.now },
     inherit: { type: Boolean, default: true }, // cascade to child nodes
@@ -137,7 +166,10 @@ NodePermissionSchema.pre("validate", function (next) {
   next();
 });
 
-export const NodePermissionModel = mongoose.model("NodePermission", NodePermissionSchema);
+export const NodePermissionModel = mongoose.model(
+  "NodePermission",
+  NodePermissionSchema
+);
 
 /////////////////////////
 // 4️⃣ Audit Log Schema

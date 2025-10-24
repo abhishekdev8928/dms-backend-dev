@@ -24,14 +24,19 @@ export const generatePresignedUrls = async (req, res, next) => {
       const { filename, mimeType } = file;
 
       if (!filename || !mimeType) {
-        throw createHttpError.BadRequest(`filename and MIME type are required for each file`);
+        throw createHttpError.BadRequest(
+          `filename and MIME type are required for each file`
+        );
       }
 
       const uniqueId = uuidv4();
       const extension = mimeType.split("/")[1] || "bin";
       const objectKey = `files/${uniqueId}.${extension}`;
 
-      const url = await createPresignedUrlWithClient({ key: objectKey, mimeType });
+      const url = await createPresignedUrlWithClient({
+        key: objectKey,
+        mimeType,
+      });
 
       result.push({
         filename,
@@ -50,21 +55,41 @@ export const generatePresignedUrls = async (req, res, next) => {
 };
 
 /**
- * @desc    Save uploaded file metadata to DB
+ * @desc    Save a new file and create its initial version
  * @route   POST /files/save
  * @access  Private
- * @body    label, mimeType, size, storageKey, uploadedBy, parentId(optional)
+ * @body    {
+ *            label: string,
+ *            mimeType: string,
+ *            size: number,
+ *            storageKey: string,
+ *            uploadedBy: ObjectId,
+ *            parentId?: ObjectId,
+ *            note?: string,
+ *            checksum?: string,
+ *            tags?: string[]
+ *         }
  */
 
 export const saveFileMetadata = async (req, res, next) => {
   try {
-    const { label, parentId, mimeType, size, storageKey, uploadedBy } = req.body;
+    const {
+      label,
+      parentId,
+      mimeType,
+      size,
+      storageKey,
+      uploadedBy,
+      note,
+      checksum,
+      tags,
+    } = req.body;
 
     if (!label?.trim() || !mimeType || !size || !storageKey || !uploadedBy) {
       throw createHttpError.BadRequest("Missing required fields");
     }
 
-    // Create file node
+    // 1️⃣ Create file Node
     const fileNode = await NodeModel.create({
       label: label.trim(),
       type: "file",
@@ -72,23 +97,32 @@ export const saveFileMetadata = async (req, res, next) => {
       mimeType,
       size,
       uploadedBy,
-      currentVersion: 1,
+      tags: tags || [],
     });
 
-    // Create initial version
-    await FileVersionModel.create({
+    // 2️⃣ Create initial FileVersion
+    const initialVersion = await FileVersionModel.create({
       fileId: fileNode._id,
       versionNumber: 1,
       storageKey,
       size,
       mimeType,
       uploadedBy,
+      note: note || "",
+      checksum: checksum || null,
+      isActive: true,
     });
 
+    // 3️⃣ Update Node to point to current version
+    fileNode.currentVersionId = initialVersion._id;
+    await fileNode.save();
+
+    // 4️⃣ Return Node + version
     res.status(201).json({
       success: true,
-      message: "File metadata saved successfully",
-      data: fileNode,
+      message: "File saved successfully with initial version",
+      node: fileNode,
+      version: initialVersion,
     });
   } catch (error) {
     next(error);
@@ -125,96 +159,67 @@ export const checkFileExists = async (req, res, next) => {
 };
 
 /**
- * @desc    Add a new version to an existing file
- * @route   POST /files/:fileId/new-version
- * @access  Private
- * @body    { storageKey, size, mimeType, uploadedBy }
- */
-export const addNewFileVersion = async (req, res, next) => {
-  try {
-    const { fileId } = req.params;
-    const { storageKey, size, mimeType, uploadedBy } = req.body;
-
-    if (!storageKey || !size || !mimeType || !uploadedBy) {
-      throw createHttpError.BadRequest("Missing required fields");
-    }
-
-    const fileNode = await NodeModel.findById(fileId);
-    if (!fileNode || fileNode.type !== "file") {
-      throw createHttpError.NotFound("File not found");
-    }
-
-    const newVersionNumber = (fileNode.currentVersion || 0) + 1;
-
-    const version = await FileVersionModel.create({
-      fileId,
-      versionNumber: newVersionNumber,
-      storageKey,
-      size,
-      mimeType,
-      uploadedBy,
-    });
-
-    fileNode.currentVersion = newVersionNumber;
-    await fileNode.save();
-
-    res.status(201).json({
-      success: true,
-      message: "New file version added",
-      data: version,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/**
  * @desc    Replace an existing file completely
- * @route   PUT /files/:fileId/replace
+ * @route   PUT /files/:fileId/reupload
  * @access  Private
- * @body    { storageKey, size, mimeType, uploadedBy }
+ * @body    { storageKey, size, mimeType, uploadedBy, note?, checksum? }
  */
-export const replaceFile = async (req, res, next) => {
+export const reUploadFile = async (req, res, next) => {
   try {
     const { fileId } = req.params;
-    const { storageKey, size, mimeType, uploadedBy } = req.body;
+    const { storageKey, size, mimeType, uploadedBy, note, checksum } = req.body;
 
     if (!storageKey || !size || !mimeType || !uploadedBy) {
       throw createHttpError.BadRequest("Missing required fields");
     }
 
-    const fileNode = await NodeModel.findById(fileId);
-    if (!fileNode || fileNode.type !== "file") {
-      throw createHttpError.NotFound("File not found");
+    // Find the Node
+    const node = await NodeModel.findById(fileId);
+    if (!node) {
+      throw createHttpError.NotFound("File (Node) not found");
     }
 
-    const newVersionNumber = (fileNode.currentVersion || 0) + 1;
+    // Find latest version for this file
+    const latestVersion = await FileVersionModel.findOne({ fileId }).sort({
+      versionNumber: -1,
+    });
 
-    await FileVersionModel.create({
+    const newVersionNumber = latestVersion
+      ? latestVersion.versionNumber + 1
+      : 1;
+
+    // Create new FileVersion
+    const newFileVersion = await FileVersionModel.create({
       fileId,
       versionNumber: newVersionNumber,
       storageKey,
       size,
       mimeType,
       uploadedBy,
+      note: note || "",
+      checksum: checksum || null,
+      isActive: true,
     });
 
-    fileNode.currentVersion = newVersionNumber;
-    fileNode.size = size;
-    fileNode.mimeType = mimeType;
-    await fileNode.save();
+    // Mark previous version as inactive
+    if (latestVersion) {
+      latestVersion.isActive = false;
+      await latestVersion.save();
+    }
+
+    // Update Node to point to current version
+    node.currentVersionId = newFileVersion._id;
+    await node.save();
 
     res.status(200).json({
-      success: true,
       message: "File replaced successfully",
-      data: fileNode,
+      version: newFileVersion,
+      node,
     });
   } catch (err) {
     next(err);
   }
 };
-
-
 
 /**
  * @desc    Search and filter files/folders
@@ -252,7 +257,7 @@ export const searchFiles = async (req, res, next) => {
 
     // Filter by tags
     if (tags) {
-      const tagsArray = tags.split(",").map(tag => tag.trim());
+      const tagsArray = tags.split(",").map((tag) => tag.trim());
       filter.tags = { $all: tagsArray };
     }
 
@@ -291,7 +296,6 @@ export const searchFiles = async (req, res, next) => {
   }
 };
 
-
 /**
  * @desc    Get all versions of a specific file
  * @route   GET /files/:fileId/versions
@@ -308,8 +312,9 @@ export const getFileVersions = async (req, res, next) => {
     }
 
     // Fetch all versions for the file, sorted by versionNumber descending
-    const versions = await FileVersionModel.find({ fileId })
-      .sort({ versionNumber: -1 })
+    const versions = await FileVersionModel.find({ fileId }).sort({
+      versionNumber: -1,
+    });
     //   .populate("uploadedBy", "name email");
 
     res.status(200).json({
