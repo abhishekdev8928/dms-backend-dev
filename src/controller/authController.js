@@ -7,7 +7,7 @@ import { sendEmail } from "../utils/sendEmail.js";
 /**
  * @desc    Login user and send OTP
  * @route   POST /auth/login
- * @body    { email, password, otpMethod } // otpMethod: "email" | "authenticator"
+ * @body    { email, password } 
  */
 export const login = async (req, res, next) => {
   try {
@@ -32,68 +32,12 @@ export const login = async (req, res, next) => {
     // Send OTP to email
     await sendEmail(user.email, "Your OTP Code", `Your OTP is: ${otp}`);
 
+    // ✅ Return email in response for frontend
     return res.status(200).json({
       success: true,
       message: "OTP sent to your email",
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/**
- * @desc    Verify OTP and return JWT token
- * @route   POST /auth/verify-otp
- * @body    { email, otp, otpMethod, authkey? } 
- */
-export const verifyOtp = async (req, res, next) => {
-  try {
-    const { email, otp, otpMethod, authkey } = req.body;
-
-    if (!email || !otp || !otpMethod) {
-      throw createError.BadRequest("Email, OTP and otpMethod are required");
-    }
-
-    const user = await UserModel.findOne({ email });
-    if (!user) throw createError.Unauthorized("User not found");
-
-    let isValidOtp = false;
-
-    if (otpMethod === "authenticator") {
-      if (!user.authkey) throw createError.BadRequest("User has not set up Authenticator OTP");
-
-      isValidOtp = speakeasy.totp.verify({
-        secret: user.authkey,
-        encoding: "base32",
-        token: otp,
-        window: 1,
-      });
-    } else if (otpMethod === "email") {
-      isValidOtp = parseInt(otp) === user.otp;
-      user.otp = null; // clear OTP after verification
-      await user.save();
-    } else {
-      throw createError.BadRequest("Invalid otpMethod. Use 'email' or 'authenticator'");
-    }
-
-    if (!isValidOtp) throw createError.Unauthorized("Invalid OTP");
-
-    // Save authkey if provided (only for authenticator)
-    if (authkey && otpMethod === "authenticator" && !user.authkey) {
-      user.authkey = authkey;
-      await user.save();
-    }
-
-    const token = user.generateToken();
-
-    res.status(200).json({
-      success: true,
-      message: "OTP verified successfully",
       data: {
-        id: user._id,
         email: user.email,
-        role: user.role,
-        token,
       },
     });
   } catch (err) {
@@ -103,15 +47,80 @@ export const verifyOtp = async (req, res, next) => {
 
 
 /**
+ * @desc    Verify OTP (auto-detect email or authenticator) and return JWT token
+ * @route   POST /auth/verify-otp
+ * @body    { email, otp }
+ */
+export const verifyOtp = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      throw createError.BadRequest("Email and OTP are required");
+    }
+
+    const user = await UserModel.findOne({ email });
+    if (!user) throw createError.Unauthorized("User not found");
+
+    let isValidOtp = false;
+
+    // If user has an authenticator key, try verifying via authenticator
+    if (user.authkey) {
+      isValidOtp = speakeasy.totp.verify({
+        secret: user.authkey,
+        encoding: "base32",
+        token: otp,
+        window: 1,
+      });
+    }
+
+    // If authenticator OTP failed or user has no authkey, check email OTP
+    if (!isValidOtp) {
+      isValidOtp = parseInt(otp) === user.otp;
+    }
+
+    if (!isValidOtp) {
+      throw createError.Unauthorized("Invalid OTP");
+    }
+
+    // Clear OTP after verification
+    if (user.otp) {
+      user.otp = null;
+    }
+
+    // Mark user as verified
+    user.isVerified = true;
+    await user.save();
+
+    const token = user.generateToken();
+
+    res.status(200).json({
+      success: true,
+      message: "OTP verified successfully",
+      data: {
+        id: user._id,
+        email: user.email,
+        isVerified: user.isVerified,
+        token,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+
+/**
  * @desc    Register a new user
  * @route   POST /auth/register
  * @body    { email, password, role }
  */
 export const register = async (req, res, next) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, password } = req.body;
 
-    if (!email || !password || !role) {
+    if (!email || !password) {
       throw createError.BadRequest("Email, password, and role are required");
     }
 
@@ -127,8 +136,6 @@ export const register = async (req, res, next) => {
     const user = new UserModel({
       email,
       password,
-      role,
-      isVerified: true,
       authkey,
     });
 
