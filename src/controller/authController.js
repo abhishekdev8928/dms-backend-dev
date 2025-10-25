@@ -11,10 +11,10 @@ import { sendEmail } from "../utils/sendEmail.js";
  */
 export const login = async (req, res, next) => {
   try {
-    const { email, password, otpMethod } = req.body;
+    const { email, password } = req.body;
 
-    if (!email || !password || !otpMethod) {
-      throw createError.BadRequest("Email, password, and otpMethod are required");
+    if (!email || !password) {
+      throw createError.BadRequest("Email and password are required");
     }
 
     const user = await UserModel.findOne({ email });
@@ -23,34 +23,19 @@ export const login = async (req, res, next) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) throw createError.Unauthorized("Invalid email or password");
 
-    let otp;
+    // Generate numeric email OTP
+    const otp = Math.floor(100000 + Math.random() * 900000); // 6-digit OTP
+    user.otp = otp;
+    user.loginotpcount += 1;
+    await user.save();
 
-    if (otpMethod === "authenticator") {
-      if (!user.authkey) {
-        throw createError.BadRequest("User has not set up Authenticator OTP");
-      }
-      // Just respond that user should provide TOTP from authenticator app
-      return res.status(200).json({
-        success: true,
-        message: "Enter OTP from your authenticator app",
-      });
-    } else if (otpMethod === "email") {
-      // Generate numeric email OTP
-      otp = Math.floor(100000 + Math.random() * 900000); // 6-digit OTP
-      user.otp = otp;
-      user.loginotpcount += 1;
-      await user.save();
+    // Send OTP to email
+    await sendEmail(user.email, "Your OTP Code", `Your OTP is: ${otp}`);
 
-      // Send OTP to email
-      await sendEmail(user.email, "Your OTP Code", `Your OTP is: ${otp}`);
-
-      return res.status(200).json({
-        success: true,
-        message: "OTP sent to your email",
-      });
-    } else {
-      throw createError.BadRequest("Invalid otpMethod. Use 'email' or 'authenticator'");
-    }
+    return res.status(200).json({
+      success: true,
+      message: "OTP sent to your email",
+    });
   } catch (err) {
     next(err);
   }
